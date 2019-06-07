@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta name="author" content="Jingtao Cheng" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+    <title>Socket.IO chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font: 13px Helvetica, Arial;
+        }
+
+        #inputBar {
+            background: #000;
+            padding: 3px;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+
+        #inputBar input {
+            border: 0;
+            padding: 10px;
+            width: 80%;
+            margin-right: .4%;
+            margin-left: .4%;
+        }
+
+        #inputBar select {
+            width: 9%;
+            height: 30px;
+        }
+
+        #inputBar button {
+            width: 9.6%;
+            background: rgb(130, 224, 255);
+            border: none;
+            padding: 10px;
+        }
+
+        #userList {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #userList li {
+            padding: 5px 10px;
+        }
+
+        #userList li:nth-child(odd) {
+            background: lightgoldenrodyellow;
+        }
+
+        #messages {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #messages li {
+            padding: 5px 10px;
+        }
+
+        #messages li:nth-child(odd) {
+            background: whitesmoke;
+        }
+
+        .container {
+            display: flex;
+        }
+
+        .container #leftPanel {
+            width: 200px;
+            height: 100%;
+            background: lightblue;
+        }
+
+        .container #rightPanel {
+            flex: 1;
+            height: 100%;
+        }
+
+        .container #leftPanel h1 {
+            margin: 5px;
+        }
+
+        .container #rightPanel h1 {
+            margin: 5px;
+        }
+
+        #navbar #nav-wrapper ul  {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #333;
+        }
+
+        #navbar #nav-wrapper li {
+            float: left;
+        }
+
+        #navbar #nav-wrapper li a {
+            display: block;
+            color: white;
+            text-align: center;
+            padding: 14px 16px;
+            text-decoration: none;
+        }
+
+        #navbar #nav-wrapper li a:hover {
+            background-color: #111;
+        }
+    </style>
+</head>
+
+<body>
+    <nav id="navbar">
+        <div id="nav-wrapper">
+            <ul>
+                <li><a href="#Home">Home</a></li>
+                <li><a href="#room1">Room1</a></li>
+                <li><a href="#creatRoom">Create New Room</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="leftPanel">
+            <h1>User List</h1>
+            <ul id="userList"></ul>
+        </div>
+        <div id="rightPanel">
+            <h1>Messages</h1>
+            <ul id="messages"></ul>
+        </div>
+    </div>
+    <div>
+        <div id="inputBar">
+            <select id="userSelect">
+                <option value="all">All Users</option>
+            </select>
+            <input id="MSG" autocomplete="off" placeholder="input message here, send with Enter key or send button" />
+            <button id="sendMSG">Send</button>
+        </div>
+    </div>
+
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://code.jquery.com/jquery-1.11.3.js"></script>
+
+    <script>
+        var socket = io("http://localhost:3000");
+
+        var userName = '';
+        // var userName = 'aa'
+        var receiverName = 'all';
+        //var currentUsers = [];
+
+        //alert functions :
+        socket.on('alert userName exists', (name) => {
+            alert('Username:  ' + ' was exist !!!');
+            EnterUserName();
+        });
+
+        socket.on('msg user join', (name) => {
+            var date = FormatDate(new Date());
+            $('#messages').append($('<li>').text(date + name + ' Join the room, WELCOME!'));
+        });
+
+        socket.on('msg user leave', (name) => {
+            var date = FormatDate(new Date());
+            //addon
+            //currentUsers.splice(currentUsers.indexOf(name), 1);
+
+            $('#messages').append($('<li>').text(date + name + ' Left the room!'));
+            // $('#userSelect[value=\' + name + \']').remove();
+            $('#userSelect').find('[value=\'' + name + '\']').remove();
+            //$('#userList').find('[value=\'' + name + '\']').remove();
+            $("ul#userList li:contains('" + name + "')").remove();
+        });
+
+        socket.on('disconnect', () => {
+            $(window).unbind('beforeunload');
+            alert('Lost connection!!\nRefresh page.');
+            window.location.reload();
+            //addon
+            //currentUsers.splice(currentUsers.indexOf(userName), 1);
+        });
+
+        //functionalitys: 
+
+        socket.on('add userList', (name) => {
+            if (userName != name) {
+                $('#userSelect').append($('<option></option>').attr('value', name).text(name));
+                $('#userList').append($('<li>').text(name));
+            }
+            //addon
+            // currentUsers = [];
+            // if (currentUsers.indexOf(name) === -1) {
+            //     currentUsers.push(name);
+            // }
+        });
+
+        socket.on('chat message', (userName, receiverName, msg, date) => {
+            displayMessage(userName, receiverName, msg, date);
+        });
+
+
+        function emitMessage() {
+            if ($('#MSG').val().trim() != '') {
+                var date = new Date();
+                var msg = $('#MSG').val();
+                displayMessage(userName, receiverName, msg, date);
+                socket.emit('chat message', userName, receiverName, msg, date);
+                $('#MSG').val('');
+            }
+            $('#MSG').focus();
+        }
+
+        function displayMessage(userName, receiverName, msg, date) {
+            if (msg) {
+                if (receiverName == 'all')
+                    $('#messages').append($('<li>').text(FormatDate(date) + userName + ': ' + msg));
+                else {
+                    // $('#messages').append($('<li>').text(FormatDate(date) + ' Private chat: ' + userName + '  to  ' + receiverName + ': ' + msg));
+                    $('#messages').append($('<li>').text(FormatDate(date) + ' Private chat: [ ' + userName + '  =>  ' +
+                        receiverName + ' ] : ' + msg).css({
+                        'color': '#000066',
+                        'font-weight': 'bolder'
+                    }));
+                }
+            }
+        }
+
+        //help to figure out the reconnection problem
+        $(window).on('beforeunload', function () {
+            return 'Are you sure want to leave?';
+        });
+
+        $('#MSG').keydown((e) => {
+            if (e.keyCode == 13) {
+                emitMessage();
+            }
+        });
+
+        $('#sendMSG').click(() => {
+            emitMessage();
+        })
+
+        //chat with specific user
+        $('#userSelect').change(() => {
+            //$( "#userSelect option:selected" ).val();
+            receiverName = $('#userSelect').find(':selected').val();
+        });
+
+        //when enter key down, emit message
+        function EnterUserName() {
+            do {
+                userName = prompt('Please enter your name: ', 'Jingtao');
+            } while (userName == null || userName == '')
+
+            socket.emit('new user', userName);
+            //addon
+            $('#userList').append($('<li>').text(userName));
+        }
+
+        //convert date formate to show the specific time of msg
+        function FormatDate(currentdate) {
+            var date = new Date(currentdate);
+            var datetime = '[' + Appendzero(date.getHours()) + ':' + Appendzero(date.getMinutes()) + ':' +
+                Appendzero(date.getSeconds()) + ']';
+            return datetime;
+        }
+        //if hours if less than tens, add 0 before for better formating
+        function Appendzero(obj) {
+            if (obj < 10) return "0" + "" + obj;
+            else return obj;
+        }
+
+        if (userName == '' || userName == null)
+            EnterUserName();
+    </script>
+</body>
+
+</html>
