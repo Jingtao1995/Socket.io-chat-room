@@ -1,3 +1,4 @@
+// required components
 var app = require('express')();
 var http = require('http').Server(app)
 var io = require('socket.io')(http);
@@ -5,13 +6,15 @@ var io = require('socket.io')(http);
 var currentUser = [];
 var currentSocket = [];
 var Rooms = ['room1'];
+var roomName = '';
 
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/index.html');
 });
 
 io.on('connection', function (socket) {
-
+    //if server receive socket with chat message flag, check receiver's name
+    //and choose to send private msg or broadcast the msg to all
     socket.on('chat message', (userName, receiverName, msg, date) => {
         if (receiverName == 'all') {
             //send message to all client without self
@@ -24,7 +27,8 @@ io.on('connection', function (socket) {
     })
 
 
-    //check if user exist then add user
+    //when server receive socket of 'new user' event, store user's name and
+    //response to cient.
     socket.on('new user', (userName) => {
         if (currentUser.indexOf(userName) == -1) {
             currentUser.push(userName);
@@ -39,7 +43,7 @@ io.on('connection', function (socket) {
     })
 
 
-
+    //when server listen disconnect event
     socket.on('disconnect', () => {
         //when disconnect username doesn't null, show user left message
         if (currentSocket.indexOf(socket) != -1) {
