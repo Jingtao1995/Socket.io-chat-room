@@ -97,7 +97,7 @@
             margin: 5px;
         }
 
-        #navbar #nav-wrapper ul  {
+        #navbar #nav-wrapper ul {
             list-style-type: none;
             margin: 0;
             padding: 0;
@@ -128,8 +128,10 @@
     <nav id="navbar">
         <div id="nav-wrapper">
             <ul>
-                <li><a href="#room1">Room1</a></li>
-                <li><a href="javascript:void(0)" id="createRoom">Create New Room</a></li>
+                <li><a id="room1" onclick="switchRoom(this.id)" href="javascript:void(0)">Room1</a></li>
+                <li><a id="room2" onclick="switchRoom(this.id)" href="javascript:void(0)">Room2</a></li>
+                <li><a id="room3" onclick="switchRoom(this.id)" href="javascript:void(0)">Room3</a></li>
+                <li><a id="createRoom" href="javascript:void(0)">Create New Room</a></li>
                 <!-- $('#createRoom').on("click",function(){
                     ...
                 }) -->
@@ -167,9 +169,8 @@
         var socket = io("http://localhost:3000");
 
         var userName = '';
-        // var userName = 'aa' testing use
         var receiverName = 'all';
-        //var currentUsers = [];
+        var currentRoom = 'room1';
 
         //alert functions when the entered userName is aready registed:
         socket.on('alert userName exists', (name) => {
@@ -178,20 +179,26 @@
         });
 
         //send welcome msg for new user join current room
-        socket.on('msg user join', (name) => {
+        socket.on('msg user join', (name, room) => {
             var date = FormatDate(new Date());
-            $('#messages').append($('<li>').text(date + name + ' Join the room, WELCOME!'));
+            $('#messages').append($('<li>').text(date + name + ' Join ' + room + ', WELCOME!'));
+            currentRoom = room;
+
+            // $('#userList').append($('<li>').text(name + ' in ' + room).css({
+            //     'font-weight': 'bolder'
+            // }));
         });
 
         //send alert msg when any user is leave current room
-        socket.on('msg user leave', (name) => {
+        socket.on('msg user leave', (name, room) => {
             var date = FormatDate(new Date());
 
             //append user leave message to message panel 
-            $('#messages').append($('<li>').text(date + name + ' Left the room!'));
+            $('#messages').append($('<li>').text(date + name + ' Left ' + room + '!'));
             //delete left user from selector and user List panel
             $('#userSelect').find('[value=\'' + name + '\']').remove();
             $("ul#userList li:contains('" + name + "')").remove();
+            currentRoom = '';
         });
 
         //when disconnect pop window to confirm, avoid accidental disconnect
@@ -204,10 +211,25 @@
         //functionalitys: 
 
         //receive server's msg to add joined user to userList selector and List panel
-        socket.on('add userList', (name) => {
-            if (userName != name) {
+        socket.on('update userList', (name, room) => {
+            if (currentRoom == room && userName == name) {
+                // if (userName != name) {
+                //     $('#userSelect').append($('<option></option>').attr('value', name).text(name));
+                // }
+
+                if ($('#userList').text().indexOf(name) == -1) {
+                    $('#userList').append($('<li>').text(name + ' in ' + room).css({
+                        'font-weight': 'bolder'
+                    }));
+                }
+            } else if (userName != name && $('#userList').text().indexOf(name) == -1) {
+                $('#userList').append($('<li>').text(name + ' in ' + room).css({
+                    'font-weight': 'bolder'
+                }));
+                
+            } else if (userName != name && $('#userSelect').val().indexOf(name) == -1) {
                 $('#userSelect').append($('<option></option>').attr('value', name).text(name));
-                $('#userList').append($('<li>').text(name));
+
             }
         });
 
@@ -215,6 +237,13 @@
         socket.on('chat message', (userName, receiverName, msg, date) => {
             displayMessage(userName, receiverName, msg, date);
         });
+
+        socket.on('error no user', (name, room) => {
+            $('#messages').append($('<li>').text('Alert: ' + name + ' not in ' + room + ' !').css({
+                'color': '#FF6347',
+                'font-weight': 'bolder'
+            }));
+        })
 
         //get the input from inputBar and send to server
         function emitMessage() {
@@ -228,15 +257,25 @@
             $('#MSG').focus();
         }
 
+        //add on
+        function switchRoom(newroom) {
+            socket.emit('switchRoom', userName, currentRoom, newroom);
+            console.log(newroom + ' onclick!');
+            // $('#userList').append($('<li>').text(name + ' in ' + room).css({
+            //     'font-weight': 'bolder'
+            // }));
+        }
+
         //helper function for better viewing in message panel
         function displayMessage(userName, receiverName, msg, date) {
             if (msg) {
                 //when receiver is all means public, otherwise it's private msg
                 if (receiverName == 'all')
-                    $('#messages').append($('<li>').text(FormatDate(date) + userName + ': ' + msg));
+                    $('#messages').append($('<li>').text(FormatDate(date) + '  ' + userName + ': ' + msg));
                 else {
                     // $('#messages').append($('<li>').text(FormatDate(date) + ' Private chat: ' + userName + '  to  ' + receiverName + ': ' + msg));
-                    $('#messages').append($('<li>').text(FormatDate(date) + ' Private chat: [ ' + userName + '  =>  ' +
+                    $('#messages').append($('<li>').text(FormatDate(date) + '  ' + ' Private chat: [ ' + userName +
+                        '  =>  ' +
                         receiverName + ' ] : ' + msg).css({
                         'color': '#000066',
                         'font-weight': 'bolder'
@@ -276,7 +315,9 @@
 
             socket.emit('new user', userName);
             //addon
-            $('#userList').append($('<li>').text(userName));
+            // $('#userList').append($('<li>').text(userName));
+
+            $('#navbar #nav-wrapper ul').append($('<li>').append($('<a>').text('USERNAME: ' + userName)));
         }
 
         //convert date formate to show the specific time of msg
